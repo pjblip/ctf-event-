@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { supabase, isRealBackend } from './services/supabase';
 import { getUserStats } from './utils/storage';
 import Navbar from './components/Navbar';
@@ -17,14 +17,21 @@ import ProfileModal from './components/ProfileModal';
 import { ToastProvider, useToast } from './components/ui/Toast';
 import { ACHIEVEMENTS } from './constants';
 import BootSequence from './components/BootSequence';
+import CursorEffect from './components/CursorEffect';
 
 function AppContent() {
   const [currentPage, setCurrentPage] = useState<string>('home');
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [selectedCase, setSelectedCase] = useState<Challenge | null>(null);
-  const [userStats, setUserStats] = useState<Stats>({ correct: 0, total: 0, points: 0 });
+  // Default to 250 points
+  const [userStats, setUserStats] = useState<Stats>({ correct: 0, total: 0, points: 250 });
   const [isLoading, setIsLoading] = useState(true);
-  const [isBooting, setIsBooting] = useState(true);
+  
+  // UX: Only run boot sequence once per session
+  const [isBooting, setIsBooting] = useState(() => {
+    return !sessionStorage.getItem('cyberhack_booted');
+  });
+
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   const { addToast } = useToast();
@@ -32,8 +39,6 @@ function AppContent() {
   // Track achievements to avoid double popping toasts
   const unlockedRef = useRef<Set<string>>(new Set());
 
-  // ADMIN CONFIGURATION
-  // Added your email so you have admin access immediately upon signup
   const ADMIN_EMAILS = ['admin@cyberhack.com', 'joshipushkar675@gmail.com'];
 
   useEffect(() => {
@@ -49,16 +54,13 @@ function AppContent() {
           };
           setCurrentUser(userObj);
           
-          // Async fetch stats
           const stats = await getUserStats(user.id);
           setUserStats(stats);
           
-          // Initialize unlocked achievements
           ACHIEVEMENTS.forEach(ach => {
              if (ach.condition(stats)) unlockedRef.current.add(ach.id);
           });
           
-          // Note: Welcome toast will fire after boot sequence
           setTimeout(() => {
              addToast(`Welcome back, Agent ${userObj.username}`, 'info');
           }, 4500);
@@ -76,7 +78,6 @@ function AppContent() {
     checkSession();
   }, []);
 
-  // Check for new achievements whenever stats change
   useEffect(() => {
     if (!currentUser) return;
     
@@ -107,7 +108,7 @@ function AppContent() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
-    setUserStats({ correct: 0, total: 0, points: 0 });
+    setUserStats({ correct: 0, total: 0, points: 250 });
     setCurrentPage('home');
     setSelectedCase(null);
     unlockedRef.current.clear();
@@ -127,13 +128,33 @@ function AppContent() {
     setCurrentPage('case-detail');
   };
 
-  // Render Boot Sequence until both animation is done AND data is loaded
-  if (isBooting || isLoading) {
-    return <BootSequence onComplete={() => setIsBooting(false)} isDataReady={!isLoading} />;
+  const handleBootComplete = () => {
+    sessionStorage.setItem('cyberhack_booted', 'true');
+    setIsBooting(false);
+  };
+
+  if (isBooting) {
+    // Determine data readiness. If loading takes longer than boot, wait. 
+    // Usually loading is fast enough.
+    return <BootSequence onComplete={handleBootComplete} isDataReady={!isLoading} />;
   }
 
+  // Define Page Transition Variants
+  const pageVariants = {
+    initial: { opacity: 0, y: 15, scale: 0.98, filter: 'blur(5px)' },
+    animate: { opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' },
+    exit: { opacity: 0, y: -15, scale: 0.98, filter: 'blur(5px)' }
+  };
+
+  const pageTransition = { duration: 0.3, ease: "easeOut" };
+
   return (
-    <div className="relative min-h-screen text-slate-100 flex flex-col">
+    <div className="relative min-h-screen text-slate-100 flex flex-col overflow-hidden">
+      {/* GLOBAL SCREEN EFFECTS */}
+      <div className="scanlines"></div>
+      <div className="vignette"></div>
+      <CursorEffect />
+
       <MatrixBackground />
       
       <Navbar 
@@ -164,46 +185,52 @@ function AppContent() {
       <main className="flex-grow pt-20 px-4 pb-12 w-full max-w-7xl mx-auto z-10">
         <AnimatePresence mode="wait">
           {currentPage === 'home' && (
-            <HomePage key="home" onNavigate={navigateTo} />
+            <motion.div key="home" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+              <HomePage onNavigate={navigateTo} />
+            </motion.div>
           )}
           
           {(currentPage === 'login' || currentPage === 'signup') && (
-            <AuthPage 
-              key="auth" 
-              mode={currentPage as 'login' | 'signup'} 
-              onLogin={handleLogin}
-              onNavigate={navigateTo}
-            />
+            <motion.div key="auth" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+              <AuthPage 
+                mode={currentPage as 'login' | 'signup'} 
+                onLogin={handleLogin}
+                onNavigate={navigateTo}
+              />
+            </motion.div>
           )}
 
           {currentPage === 'cases' && (
-            <ChallengesPage 
-              key="cases" 
-              currentUser={currentUser} 
-              onSelectCase={handleSelectCase} 
-              onNavigate={navigateTo}
-            />
+            <motion.div key="cases" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+              <ChallengesPage 
+                currentUser={currentUser} 
+                onSelectCase={handleSelectCase} 
+                onNavigate={navigateTo}
+              />
+            </motion.div>
           )}
 
           {currentPage === 'case-detail' && selectedCase && (
-            <ChallengeDetailPage 
-              key="case-detail"
-              challenge={selectedCase}
-              currentUser={currentUser}
-              onBack={() => navigateTo('cases')}
-              onUpdateStats={(newStats) => setUserStats(newStats)}
-            />
+            <motion.div key="case-detail" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+              <ChallengeDetailPage 
+                challenge={selectedCase}
+                currentUser={currentUser}
+                onBack={() => navigateTo('cases')}
+                onUpdateStats={(newStats) => setUserStats(newStats)}
+              />
+            </motion.div>
           )}
 
           {currentPage === 'leaderboard' && (
             currentUser?.isAdmin ? (
-              <LeaderboardPage 
-                key="leaderboard" 
-                currentUser={currentUser}
-                onNavigate={navigateTo} 
-              />
+              <motion.div key="leaderboard" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+                <LeaderboardPage 
+                  currentUser={currentUser}
+                  onNavigate={navigateTo} 
+                />
+              </motion.div>
             ) : (
-              <div key="access-denied" className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in zoom-in duration-300">
+              <motion.div key="access-denied" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition} className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="w-20 h-20 bg-red-900/20 rounded-full flex items-center justify-center mb-6 border border-red-500/50">
                   <Lock className="w-10 h-10 text-red-500" />
                 </div>
@@ -213,12 +240,14 @@ function AppContent() {
                   This file is accessible to Administrators only.
                 </p>
                 <Button onClick={() => navigateTo('cases')}>Return to Operations</Button>
-              </div>
+              </motion.div>
             )
           )}
 
           {currentPage === 'team' && (
-            <TeamPage key="team" />
+            <motion.div key="team" variants={pageVariants} initial="initial" animate="animate" exit="exit" transition={pageTransition}>
+              <TeamPage />
+            </motion.div>
           )}
         </AnimatePresence>
       </main>

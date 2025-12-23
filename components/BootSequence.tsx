@@ -2,16 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Terminal } from 'lucide-react';
 
-const BOOT_LOGS = [
-  "INITIALIZING KERNEL...",
-  "LOADING MODULES: SECURITY, CRYPTO, NETWORKING...",
-  "VERIFYING INTEGRITY SIGNATURES...",
-  "ESTABLISHING SECURE CONNECTION...",
-  "BYPASSING FIREWALLS...",
-  "MOUNTING VIRTUAL DRIVES...",
-  "ACCESSING MAINFRAME...",
-  "DECRYPTING USER DATA...",
-  "SYSTEM READY."
+const BOOT_STEPS = [
+  { text: "BIOS CHECK", status: "OK", time: 200 },
+  { text: "LOADING KERNEL", status: "LOADED", time: 400 },
+  { text: "MOUNTING VOLUMES", status: "MOUNTED", time: 600 },
+  { text: "CRYPTOGRAPHY ENGINE", status: "ACTIVE", time: 800 },
+  { text: "NETWORK INTERFACE", status: "UP", time: 1000 },
+  { text: "ESTABLISHING VPN", status: "SECURE", time: 1400 },
+  { text: "USER PROFILE", status: "VERIFIED", time: 1800 },
 ];
 
 interface BootSequenceProps {
@@ -20,84 +18,91 @@ interface BootSequenceProps {
 }
 
 const BootSequence: React.FC<BootSequenceProps> = ({ onComplete, isDataReady }) => {
-  const [logs, setLogs] = useState<string[]>([]);
-  const [animationDone, setAnimationDone] = useState(false);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [progress, setProgress] = useState(0);
   
   useEffect(() => {
-    let delay = 0;
-    const timeouts: NodeJS.Timeout[] = [];
-
-    BOOT_LOGS.forEach((log, index) => {
-      // Randomize delay for realistic typing feel
-      const stepDelay = Math.random() * 300 + 150;
-      delay += stepDelay;
-      
-      const timeout = setTimeout(() => {
-        setLogs(prev => [...prev, log]);
-        
-        // If this is the last log, mark animation as done
-        if (index === BOOT_LOGS.length - 1) {
-          setTimeout(() => {
-            setAnimationDone(true);
-          }, 800);
+    // Progress Bar Animation
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          return 100;
         }
-      }, delay);
-      
-      timeouts.push(timeout);
-    });
-
-    return () => timeouts.forEach(clearTimeout);
+        return prev + 2; // Speed up loading
+      });
+    }, 30);
+    return () => clearInterval(interval);
   }, []);
 
-  // Only complete when both animation is done AND data is ready (session checked)
   useEffect(() => {
-    if (animationDone && isDataReady) {
-      onComplete();
+    // Step Animation
+    if (currentStep < BOOT_STEPS.length) {
+      const timer = setTimeout(() => {
+        setCurrentStep(prev => prev + 1);
+      }, 250); // Faster steps
+      return () => clearTimeout(timer);
     }
-  }, [animationDone, isDataReady, onComplete]);
+  }, [currentStep]);
+
+  useEffect(() => {
+    if (progress === 100 && currentStep === BOOT_STEPS.length && isDataReady) {
+      setTimeout(onComplete, 800); // Short pause at 100%
+    }
+  }, [progress, currentStep, isDataReady, onComplete]);
 
   return (
-    <div className="fixed inset-0 bg-black z-[100] flex flex-col justify-between p-8 md:p-12 font-mono text-cyan-500 overflow-hidden">
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-[101] pointer-events-none bg-[length:100%_2px,3px_100%] opacity-20"></div>
+    <div className="fixed inset-0 bg-black z-[100] flex flex-col items-center justify-center font-mono text-cyan-500">
+      {/* Background Grid */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.05)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
       
-      <div className="flex items-center space-x-2 mb-8 opacity-80">
-        <Terminal className="w-6 h-6 animate-pulse" />
-        <span className="text-sm font-bold tracking-widest">CYBERHACK BIOS v4.0.2</span>
-      </div>
-
-      <div className="flex-grow flex flex-col justify-end">
-        {logs.map((log, i) => (
-          <motion.div 
-            key={i}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="mb-1 text-sm md:text-base text-shadow-glow"
-          >
-            <span className="text-slate-600 mr-3">[{new Date().toLocaleTimeString('en-US', {hour12: false})}]</span>
-            <span className={i === BOOT_LOGS.length - 1 ? "text-emerald-400 font-bold" : "text-cyan-500"}>
-              {log}
-            </span>
-          </motion.div>
-        ))}
-        
-        <motion.div 
-          animate={{ opacity: [0, 1, 0] }}
-          transition={{ repeat: Infinity, duration: 0.8 }}
-          className="w-3 h-5 bg-cyan-500 mt-1"
-        />
-      </div>
-
-      <div className="mt-8 border-t border-slate-800 pt-4 flex justify-between items-end">
-        <div className="text-xs text-slate-600">
-          MEMORY: 64TB OK<br/>
-          CPU: QUANTUM CORE i9
+      <motion.div 
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="w-full max-w-lg p-8 relative z-10"
+      >
+        <div className="flex items-center justify-center mb-12">
+           <Terminal className="w-12 h-12 text-cyan-400 mr-4 animate-pulse" />
+           <div>
+             <h1 className="text-2xl font-bold text-white tracking-widest">CYBERHACK<span className="text-cyan-500">_OS</span></h1>
+             <div className="text-xs text-slate-500">v4.0.2 REVISION 8</div>
+           </div>
         </div>
-        <div className="text-right">
-           {animationDone && !isDataReady && (
-             <span className="text-yellow-500 text-xs animate-pulse">WAITING FOR NETWORK...</span>
-           )}
+
+        <div className="space-y-2 mb-8 h-48 overflow-hidden font-bold text-xs md:text-sm">
+           {BOOT_STEPS.map((step, i) => (
+             <motion.div 
+               key={i}
+               initial={{ opacity: 0, x: -10 }}
+               animate={{ opacity: i <= currentStep ? 1 : 0, x: 0 }}
+               className="flex justify-between border-b border-slate-900/50 pb-1"
+             >
+               <span className="text-cyan-600">&gt; {step.text}...</span>
+               <span className={i === currentStep ? "text-yellow-500 animate-pulse" : "text-emerald-500"}>
+                 [{i === currentStep ? "WORKING" : step.status}]
+               </span>
+             </motion.div>
+           ))}
         </div>
-      </div>
+
+        {/* Loading Bar */}
+        <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mb-2">
+           <motion.div 
+             className="h-full bg-cyan-500 shadow-[0_0_10px_rgba(6,182,212,0.8)]"
+             style={{ width: `${progress}%` }}
+           />
+        </div>
+        <div className="flex justify-between text-xs text-slate-500">
+           <span>SYSTEM INTEGRITY</span>
+           <span>{progress}%</span>
+        </div>
+      </motion.div>
+
+      {/* Decorative Corners */}
+      <div className="absolute top-8 left-8 w-16 h-16 border-t-2 border-l-2 border-cyan-500/30"></div>
+      <div className="absolute top-8 right-8 w-16 h-16 border-t-2 border-r-2 border-cyan-500/30"></div>
+      <div className="absolute bottom-8 left-8 w-16 h-16 border-b-2 border-l-2 border-cyan-500/30"></div>
+      <div className="absolute bottom-8 right-8 w-16 h-16 border-b-2 border-r-2 border-cyan-500/30"></div>
     </div>
   );
 };

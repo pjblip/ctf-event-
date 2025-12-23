@@ -29,11 +29,14 @@ export const getChallenges = async (): Promise<Challenge[]> => {
                     fileUrl: c.file_url,
                     flag: '' // Empty, as we don't know it client-side
                 }));
+            } else if (error) {
+                console.error("Error fetching challenges from DB:", JSON.stringify(error));
             }
         } catch (e) {
             console.error("Error fetching challenges:", e);
         }
-        return MOCK_CASES; // Fallback if DB fetch fails but URL is set
+        // Fallback if DB fetch fails
+        return MOCK_CASES;
     }
     return MOCK_CASES;
 };
@@ -52,6 +55,8 @@ export const getChallengeSolveCounts = async (): Promise<Record<string, number>>
                 data.forEach((solve: any) => {
                     counts[solve.challenge_id] = (counts[solve.challenge_id] || 0) + 1;
                 });
+            } else if (error) {
+                console.warn("Error fetching solve counts:", JSON.stringify(error));
             }
         } catch (e) {
             console.error("Error fetching solve counts", e);
@@ -61,27 +66,39 @@ export const getChallengeSolveCounts = async (): Promise<Record<string, number>>
 };
 
 export const verifyFlag = async (challengeId: string, userGuess: string, mockFlag?: string): Promise<boolean> => {
+    // 1. Try Backend RPC if configured
     if (isRealBackend()) {
-        // SECURE: Call Backend RPC function
         try {
+            // Attempt RPC call
             const { data, error } = await supabase.rpc('submit_flag', {
                 p_challenge_id: challengeId,
                 p_guess: userGuess
             });
             
-            if (error) {
-                console.error("RPC Error:", error);
-                return false;
+            // If successful, return the result
+            if (!error) {
+                return !!data;
             }
-            return !!data;
+            
+            // If error (e.g. function missing, network error), log it and fall through to local check
+            console.warn("RPC Error (falling back to local check):", JSON.stringify(error, null, 2));
         } catch (e) {
-            console.error(e);
-            return false;
+            console.error("RPC Exception:", e);
         }
-    } else {
-        // INSECURE: Mock Mode (Client-side check)
-        return userGuess === mockFlag;
+    } 
+
+    // 2. Fallback / Mock Mode: Check against local data
+    
+    // Check provided mockFlag (from getChallenges result if it was a local fetch)
+    if (mockFlag && userGuess === mockFlag) return true;
+
+    // Check MOCK_CASES constants (fallback for when DB fetch worked but RPC failed)
+    const localChallenge = MOCK_CASES.find(c => c.id === challengeId);
+    if (localChallenge && localChallenge.flag === userGuess) {
+        return true;
     }
+
+    return false;
 };
 
 // ----------------------------------------------------------------------
@@ -90,7 +107,8 @@ export const verifyFlag = async (challengeId: string, userGuess: string, mockFla
 
 export const getUserStats = async (userId: string): Promise<Stats> => {
     // 1. Try Local Storage first for immediate UI feedback (Optimistic)
-    let stats: Stats = { correct: 0, total: 0, points: 0 };
+    // Set default points to 250 for new users
+    let stats: Stats = { correct: 0, total: 0, points: 250 };
     try {
         const stored = localStorage.getItem(`stats_${userId}`);
         if (stored) stats = JSON.parse(stored);
@@ -111,7 +129,7 @@ export const getUserStats = async (userId: string): Promise<Stats> => {
                 const dbStats = {
                     correct: data.solved_count || 0,
                     total: data.solved_count || 0, // Simplified for this event
-                    points: data.points || 0
+                    points: data.points !== undefined ? data.points : 250 // Fallback to 250 if undefined
                 };
                 // Sync back to local storage
                 localStorage.setItem(`stats_${userId}`, JSON.stringify(dbStats));
@@ -133,13 +151,17 @@ export const saveStats = async (userId: string, stats: Stats) => {
 
     // 2. Save to DB
     if (isRealBackend()) {
-        await supabase
-            .from('profiles')
-            .update({ 
-                points: stats.points, 
-                solved_count: stats.correct 
-            })
-            .eq('id', userId);
+        try {
+            await supabase
+                .from('profiles')
+                .update({ 
+                    points: stats.points, 
+                    solved_count: stats.correct 
+                })
+                .eq('id', userId);
+        } catch (e) {
+            console.error("Error saving stats:", e);
+        }
     }
 };
 
@@ -155,17 +177,21 @@ export const getSolvedCases = async (userId: string): Promise<string[]> => {
     } catch {}
 
     if (isRealBackend()) {
-        const { data } = await supabase
-            .from('solves')
-            .select('challenge_id')
-            .eq('user_id', userId);
-        
-        if (data) {
-            const dbSolved = data.map((s: any) => s.challenge_id);
-            // Merge arrays uniquely
-            const merged = Array.from(new Set([...localSolved, ...dbSolved]));
-            localStorage.setItem(`solved_${userId}`, JSON.stringify(merged));
-            return merged;
+        try {
+            const { data } = await supabase
+                .from('solves')
+                .select('challenge_id')
+                .eq('user_id', userId);
+            
+            if (data) {
+                const dbSolved = data.map((s: any) => s.challenge_id);
+                // Merge arrays uniquely
+                const merged = Array.from(new Set([...localSolved, ...dbSolved]));
+                localStorage.setItem(`solved_${userId}`, JSON.stringify(merged));
+                return merged;
+            }
+        } catch (e) {
+            console.error("Error fetching solved cases:", e);
         }
     }
     return localSolved;
@@ -181,10 +207,14 @@ export const saveSolvedCase = async (userId: string, caseId: string) => {
 
     // DB
     if (isRealBackend()) {
-        await supabase
-            .from('solves')
-            .insert({ user_id: userId, challenge_id: caseId })
-            .select(); 
+        try {
+            await supabase
+                .from('solves')
+                .insert({ user_id: userId, challenge_id: caseId })
+                .select(); 
+        } catch (e) {
+            console.error("Error saving solve:", e);
+        }
     }
 };
 
@@ -200,16 +230,20 @@ export const getUnlockedHints = async (userId: string): Promise<string[]> => {
     } catch {}
 
     if (isRealBackend()) {
-        const { data } = await supabase
-            .from('unlocked_hints')
-            .select('challenge_id')
-            .eq('user_id', userId);
-        
-        if (data) {
-            const dbHints = data.map((h: any) => h.challenge_id);
-            const merged = Array.from(new Set([...localHints, ...dbHints]));
-            localStorage.setItem(`hints_${userId}`, JSON.stringify(merged));
-            return merged;
+        try {
+            const { data } = await supabase
+                .from('unlocked_hints')
+                .select('challenge_id')
+                .eq('user_id', userId);
+            
+            if (data) {
+                const dbHints = data.map((h: any) => h.challenge_id);
+                const merged = Array.from(new Set([...localHints, ...dbHints]));
+                localStorage.setItem(`hints_${userId}`, JSON.stringify(merged));
+                return merged;
+            }
+        } catch (e) {
+            console.error("Error fetching hints:", e);
         }
     }
     return localHints;
@@ -225,8 +259,12 @@ export const saveUnlockedHint = async (userId: string, challengeId: string) => {
 
     // DB
     if (isRealBackend()) {
-        await supabase
-            .from('unlocked_hints')
-            .insert({ user_id: userId, challenge_id: challengeId });
+        try {
+            await supabase
+                .from('unlocked_hints')
+                .insert({ user_id: userId, challenge_id: challengeId });
+        } catch (e) {
+            console.error("Error saving hint:", e);
+        }
     }
 };

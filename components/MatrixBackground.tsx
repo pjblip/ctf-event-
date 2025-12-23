@@ -14,124 +14,151 @@ const MatrixBackground: React.FC = () => {
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
     
-    // Character Set: Katakana + Latin + Numbers + Symbols
+    // Character Set: Extended for more visual variety
     const katakana = 'ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾉﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜﾝ';
     const latin = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     const nums = '0123456789';
-    const alphabet = katakana + latin + nums;
+    const symbols = '⚡xxxxx<>[]{}/*-+=!?^&%$#@'; // Added some hacker-ish symbols
+    const alphabet = katakana + latin + nums + symbols;
     const splitLetters = alphabet.split('');
     
-    const fontSize = 16;
-    const columns = Math.ceil(width / fontSize);
+    // Configuration for Parallax Layers
+    interface Layer {
+        fontSize: number;
+        drops: Drop[];
+        speedFactor: number;
+        colors: string[];
+        opacity: number;
+    }
 
-    // Drop Configuration
-    // Each column has its own state to allow for varied speeds and colors
     interface Drop {
+      x: number;
       y: number;
       speed: number;
       color: string;
-      length: number; // how long the trail is visual perception
+      text: string;
     }
 
-    const drops: Drop[] = [];
-    
-    // Theme Colors: Cyan, Purple, Pink (and rare Green/White)
-    const colors = ['#06b6d4', '#22d3ee', '#8b5cf6', '#d946ef', '#ec4899']; 
-
-    for (let i = 0; i < columns; i++) {
-      drops[i] = {
-        y: Math.random() * -1000, // Stagger start significantly
-        speed: Math.random() * 1.5 + 0.5, // Speed between 0.5 and 2.0
-        color: colors[Math.floor(Math.random() * colors.length)],
-        length: Math.random() * 20 + 10
-      };
-    }
-
-    let frameCount = 0;
-
-    const draw = () => {
-      frameCount++;
-      
-      // Clear background with very low opacity to create long, dreamy trails
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.08)'; 
-      ctx.fillRect(0, 0, width, height);
-
-      ctx.font = `bold ${fontSize}px monospace`;
-
-      for (let i = 0; i < drops.length; i++) {
-        const drop = drops[i];
-        
-        // Pick a random character
-        const text = splitLetters[Math.floor(Math.random() * splitLetters.length)];
-        
-        // Interaction: Distance from mouse
-        const x = i * fontSize;
-        const dx = mouseRef.current.x - x;
-        // Simple distance check for x-axis only to create a "curtain" effect, or euclidean for spotlight
-        // Let's use euclidean for a spotlight effect
-        const dy = mouseRef.current.y - drop.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const isNearMouse = dist < 100;
-
-        // Color Logic
-        const isHead = Math.random() > 0.98; // Bright white leading character
-        const isGlitch = Math.random() > 0.999; // Red glitch
-
-        if (isGlitch) {
-           ctx.fillStyle = '#ff003c'; // Cyberpunk Red
-           ctx.shadowBlur = 10;
-           ctx.shadowColor = '#ff003c';
-        } else if (isHead) {
-           ctx.fillStyle = '#ffffff';
-           ctx.shadowBlur = 8;
-           ctx.shadowColor = '#ffffff';
-        } else if (isNearMouse) {
-           // Mouse lights up the matrix
-           ctx.fillStyle = '#ffffff'; 
-           ctx.shadowBlur = 15;
-           ctx.shadowColor = drop.color;
-        } else {
-           ctx.fillStyle = drop.color;
-           ctx.shadowBlur = 0;
+    // Three distinct layers for depth
+    const layers: Layer[] = [
+        { 
+            fontSize: 10, 
+            drops: [], 
+            speedFactor: 0.3, 
+            colors: ['#083344', '#172554', '#4c1d95'], // Deep dark blues/purples
+            opacity: 0.3
+        },
+        { 
+            fontSize: 14, 
+            drops: [], 
+            speedFactor: 0.8, 
+            colors: ['#06b6d4', '#8b5cf6', '#ec4899'], // Standard brand colors
+            opacity: 0.7 
+        },
+        { 
+            fontSize: 20, 
+            drops: [], 
+            speedFactor: 1.4, 
+            colors: ['#67e8f9', '#d8b4fe', '#f9a8d4', '#ffffff'], // Bright highlights
+            opacity: 1.0 
         }
+    ];
 
-        ctx.fillText(text, x, drop.y);
-        
-        // Reset Shadow for performance
-        ctx.shadowBlur = 0;
-
-        // Move drop
-        // If near mouse, speed up slightly (turbulence)
-        const currentSpeed = isNearMouse ? drop.speed * 2 : drop.speed;
-        
-        if (drop.y > height && Math.random() > 0.98) {
-          drop.y = 0;
-          // Randomize properties on reset for variety
-          drop.speed = Math.random() * 1.5 + 0.5;
-          drop.color = colors[Math.floor(Math.random() * colors.length)];
-        }
-        
-        drop.y += currentSpeed;
-      }
+    const initLayers = () => {
+        layers.forEach(layer => {
+            const columns = Math.ceil(width / layer.fontSize);
+            layer.drops = [];
+            for (let i = 0; i < columns; i++) {
+                layer.drops.push({
+                    x: i * layer.fontSize,
+                    y: Math.random() * -1000, // Stagger significantly
+                    speed: (Math.random() * 1.5 + 0.5) * layer.speedFactor,
+                    color: layer.colors[Math.floor(Math.random() * layer.colors.length)],
+                    text: splitLetters[Math.floor(Math.random() * splitLetters.length)]
+                });
+            }
+        });
     };
 
-    const interval = setInterval(draw, 30); // ~30fps is enough for matrix
+    initLayers();
+
+    const draw = () => {
+      // Create trails
+      // Use a very slight opacity to make trails last longer but fade smoothly
+      ctx.fillStyle = 'rgba(2, 6, 23, 0.15)'; // Matches bg-slate-950 roughly
+      ctx.fillRect(0, 0, width, height);
+
+      layers.forEach((layer, layerIdx) => {
+          ctx.font = `bold ${layer.fontSize}px monospace`;
+          ctx.globalAlpha = layer.opacity;
+
+          layer.drops.forEach(drop => {
+              // 1. Random Character Flip (Simulate processing)
+              if (Math.random() < 0.02) {
+                  drop.text = splitLetters[Math.floor(Math.random() * splitLetters.length)];
+              }
+
+              // 2. Mouse Interaction (Spotlight / Repulsion)
+              const dx = mouseRef.current.x - drop.x;
+              const dy = mouseRef.current.y - drop.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              const isNearMouse = dist < 120;
+
+              // 3. Render Logic
+              const isHead = Math.random() > 0.995; // Bright white leader
+              const isGlitch = Math.random() > 0.999; // Red corruption
+
+              if (isGlitch) {
+                  ctx.fillStyle = '#ef4444'; // Red-500
+                  ctx.shadowBlur = 8;
+                  ctx.shadowColor = '#ef4444';
+                  ctx.fillText(drop.text, drop.x + (Math.random() * 4 - 2), drop.y); // Jitter
+              } else if (isHead) {
+                  ctx.fillStyle = '#ffffff';
+                  ctx.shadowBlur = 10;
+                  ctx.shadowColor = '#ffffff';
+                  ctx.fillText(drop.text, drop.x, drop.y);
+              } else {
+                  ctx.shadowBlur = 0;
+                  if (isNearMouse) {
+                      ctx.fillStyle = '#cffafe'; // Cyan-100 (Bright)
+                      ctx.shadowBlur = 5;
+                      ctx.shadowColor = drop.color;
+                  } else {
+                      ctx.fillStyle = drop.color;
+                  }
+                  ctx.fillText(drop.text, drop.x, drop.y);
+              }
+
+              // 4. Movement
+              let moveSpeed = drop.speed;
+              if (isNearMouse) {
+                  // "Time Dilation" effect near mouse
+                  moveSpeed *= 0.5;
+              }
+              
+              drop.y += moveSpeed;
+
+              // 5. Reset
+              if (drop.y > height && Math.random() > 0.98) {
+                  drop.y = -50; // Reset above screen
+                  drop.speed = (Math.random() * 1.5 + 0.5) * layer.speedFactor;
+                  drop.color = layer.colors[Math.floor(Math.random() * layer.colors.length)];
+                  drop.text = splitLetters[Math.floor(Math.random() * splitLetters.length)];
+              }
+          });
+      });
+      
+      // Reset global alpha for next frame's clearRect/fillRect
+      ctx.globalAlpha = 1.0;
+    };
+
+    const interval = setInterval(draw, 33); // ~30 FPS
 
     const handleResize = () => {
         width = canvas.width = window.innerWidth;
         height = canvas.height = window.innerHeight;
-        // Re-initialize drops on resize to prevent gaps
-        const newColumns = Math.ceil(width / fontSize);
-        if (newColumns > drops.length) {
-            for (let i = drops.length; i < newColumns; i++) {
-                drops[i] = {
-                    y: Math.random() * -100,
-                    speed: Math.random() * 1.5 + 0.5,
-                    color: colors[Math.floor(Math.random() * colors.length)],
-                    length: Math.random() * 20 + 10
-                };
-            }
-        }
+        initLayers();
     };
 
     const handleMouseMove = (e: MouseEvent) => {

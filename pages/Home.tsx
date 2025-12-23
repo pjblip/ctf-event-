@@ -4,6 +4,7 @@ import { Shield, Target, Trophy, Code, Lock, Cpu, Bitcoin, Clock, AlertTriangle,
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
 import GlitchText from '../components/ui/GlitchText';
+import TypewriterText from '../components/ui/TypewriterText';
 import EventCountdown from '../components/EventCountdown';
 import ActivityFeed from '../components/ActivityFeed';
 import Terminal from '../components/Terminal';
@@ -38,8 +39,8 @@ const HomePage: React.FC<HomeProps> = ({ onNavigate }) => {
   return (
     <div className="relative py-8 lg:py-12">
       {/* Ambient Glows */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px] -z-10" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[128px] -z-10" />
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px] -z-10 animate-pulse" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[128px] -z-10 animate-pulse" style={{ animationDelay: '2s' }} />
 
       <MotionDiv 
         initial="hidden"
@@ -66,11 +67,15 @@ const HomePage: React.FC<HomeProps> = ({ onNavigate }) => {
             </span>
           </MotionH1>
           
-          <MotionP variants={itemVariants} className="text-xl text-slate-300 mb-8 max-w-2xl leading-relaxed border-l-2 border-purple-500/50 pl-6">
-            Initialize your terminal. Join the elite community of ethical hackers. Solve realistic security challenges and dominate the leaderboard in a high-fidelity simulation.
+          <MotionP variants={itemVariants} className="text-xl text-slate-300 mb-8 max-w-2xl leading-relaxed border-l-2 border-purple-500/50 pl-6 h-24">
+            <TypewriterText 
+              text="Initialize your terminal. Join the elite community of ethical hackers. Solve realistic security challenges and dominate the leaderboard in a high-fidelity simulation."
+              speed={20}
+              delay={500}
+            />
           </MotionP>
           
-          <MotionDiv variants={itemVariants} className="flex flex-col sm:flex-row gap-4">
+          <MotionDiv variants={itemVariants} className="flex flex-col sm:flex-row gap-4 mt-4">
             <Button onClick={() => onNavigate('cases')} icon={<Target className="w-5 h-5"/>}>
               Start Hacking
             </Button>

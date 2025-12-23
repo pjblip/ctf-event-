@@ -16,22 +16,21 @@
 
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #000000; /* Pitch black base */
+            background-color: #000000;
             color: #ffffff;
             overflow-x: hidden;
-            
-            /* 
-               Layered Background:
-               1. Radial Gradient: Creates a spotlight in the center, fading to black edges (Vignette).
-               2. Horizontal Grid Lines: Subtle cyan.
-               3. Vertical Grid Lines: Subtle cyan.
-            */
+            margin: 0;
+            cursor: crosshair; /* Cyberpunk feel */
+            /* Base geometric grid */
             background-image: 
-                radial-gradient(circle at 50% 30%, #0f172a 0%, #000000 80%),
-                linear-gradient(rgba(6, 182, 212, 0.05) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
-            background-size: 100% 100%, 50px 50px, 50px 50px;
-            background-attachment: fixed;
+                linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* Interactive elements should still show pointer */
+        button, a, input, select, textarea, [role="button"] {
+            cursor: pointer;
         }
 
         code, pre, .font-mono {
@@ -51,15 +50,45 @@
             height: 8px;
         }
         ::-webkit-scrollbar-track {
-            background: #000000;
-            border-left: 1px solid #1e293b;
+            background: #020617;
         }
         ::-webkit-scrollbar-thumb {
-            background: linear-gradient(180deg, var(--neon-cyan), var(--neon-purple));
+            background: #334155;
             border-radius: 4px;
+            border: 2px solid #020617;
         }
         ::-webkit-scrollbar-thumb:hover {
-            background: linear-gradient(180deg, var(--neon-purple), var(--neon-pink));
+            background: var(--neon-cyan);
+        }
+
+        /* CRT Screen Effects */
+        .scanlines {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9998;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.02) 50%,
+                rgba(0,0,0,0.02)
+            );
+            background-size: 100% 4px;
+        }
+
+        .vignette {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 9999;
+            background: radial-gradient(circle at center, transparent 60%, rgba(0,0,0,0.4) 100%);
         }
 
         /* Utilities */
@@ -74,19 +103,21 @@
             width: 100%;
             height: 100%;
             z-index: -1;
-            /* Lower opacity to ensure readability of content */
-            opacity: 0.25; 
+            opacity: 0.2; 
             pointer-events: none;
-            mix-blend-mode: screen; /* Makes colors pop against black */
         }
 
-        /* Animations */
         @keyframes shimmer {
             0% { transform: translateX(-150%) skewX(-12deg); }
             100% { transform: translateX(150%) skewX(-12deg); }
         }
         .animate-shimmer {
             animation: shimmer 2.5s infinite;
+        }
+
+        /* 3D Preserves */
+        .preserve-3d {
+            transform-style: preserve-3d;
         }
     </style>
 <script type="importmap">

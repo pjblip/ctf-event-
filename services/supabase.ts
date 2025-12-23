@@ -5,9 +5,10 @@ import { createClient } from '@supabase/supabase-js';
 const env = (import.meta as any).env || {};
 
 // LIVE CREDENTIALS
-// We fallback to the provided hardcoded values if env vars are missing
-const supabaseUrl = env.VITE_SUPABASE_URL || 'https://rfnxzvsyjqqfdlnjrinl.supabase.co';
-const supabaseKey = env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_Zqxb_KvKNKY6HBcxWiWpiw_CvtwDYof';
+// We fallback to empty strings. If these are empty, we use the Mock implementation.
+// To use a real backend, provide VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.
+const supabaseUrl = env.VITE_SUPABASE_URL || '';
+const supabaseKey = env.VITE_SUPABASE_ANON_KEY || '';
 
 // ------------------------------------------------------------------
 // MOCK IMPLEMENTATION (Fallback if no backend configured)
@@ -98,8 +99,6 @@ const mockSupabase = {
 // ------------------------------------------------------------------
 
 // Determine if we have real credentials
-// Note: We check if the keys are not the placeholders if we were using a template, 
-// but here we have specific keys.
 const hasRealCredentials = !!(supabaseUrl && supabaseKey);
 
 // If using real credentials, create the real client. Otherwise use mock.

@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Flag, AlertTriangle, Terminal, CheckCircle2, XCircle, Clock, LockKeyhole, Coins, Timer, Loader2, Download, FileCode } from 'lucide-react';
+import { ArrowLeft, Flag, AlertTriangle, Terminal, CheckCircle2, XCircle, Coins, Timer, Download, FileCode } from 'lucide-react';
 import { Challenge, User, Stats } from '../types';
 import { getSolvedCases, saveSolvedCase, saveStats, getUserStats, getUnlockedHints, saveUnlockedHint, verifyFlag } from '../utils/storage';
+import { generateChallengeFile } from '../utils/mockFileGenerator';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import GlitchText from '../components/ui/GlitchText';
 import { playSuccessSound, playErrorSound, playClickSound } from '../utils/audio';
+import { useToast } from '../components/ui/Toast';
 
 interface ChallengeDetailProps {
   challenge: Challenge;
@@ -20,7 +22,7 @@ const SUBMISSION_COOLDOWN_MS = 5000; // 5 seconds rate limit
 
 const ChallengeDetailPage: React.FC<ChallengeDetailProps> = ({ challenge, currentUser, onBack, onUpdateStats }) => {
   const [answer, setAnswer] = useState('');
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | null; message: string }>({ type: null, message: '' });
+  const [feedback, setFeedback] = useState<{ type: 'success' | 'error' | 'info' | null; message: string }>({ type: null, message: '' });
   const [isSolved, setIsSolved] = useState(false);
   const [isHintUnlocked, setIsHintUnlocked] = useState(false);
   const [stats, setStats] = useState<Stats>({ correct: 0, total: 0, points: 0 });
@@ -28,6 +30,7 @@ const ChallengeDetailPage: React.FC<ChallengeDetailProps> = ({ challenge, curren
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastAttemptTime, setLastAttemptTime] = useState(0);
   
+  const { addToast } = useToast();
   const MotionDiv = motion.div as any;
 
   // Initialize Data
@@ -145,10 +148,37 @@ const ChallengeDetailPage: React.FC<ChallengeDetailProps> = ({ challenge, curren
         setStats(newStats);
         onUpdateStats(newStats);
         setIsHintUnlocked(true);
+        addToast(`Intelligence Decrypted. -${HINT_COST} Credits`, 'info');
     } else {
         playErrorSound();
-        setFeedback({ type: 'error', message: `Insufficient funds. Cost: ${HINT_COST} PTS.` });
+        addToast(`Insufficient Funds. Required: ${HINT_COST} PTS`, 'error');
     }
+  };
+
+  const handleDownload = (e: React.MouseEvent) => {
+    e.preventDefault();
+    playClickSound();
+    
+    // Generate the file on the fly
+    const fileData = generateChallengeFile(challenge.id);
+    
+    if (!fileData) {
+        setFeedback({ type: 'error', message: 'Error: Data fragment corrupted. File unavailable.' });
+        return;
+    }
+
+    // Create a blob and trigger download
+    const blob = new Blob([fileData.content], { type: fileData.mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileData.filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    setFeedback({ type: 'info', message: 'Asset downloaded to local storage.' });
   };
 
   const getTimerColor = () => {
@@ -208,45 +238,60 @@ const ChallengeDetailPage: React.FC<ChallengeDetailProps> = ({ challenge, curren
                        <FileCode className="w-6 h-6 text-cyan-500" />
                     </div>
                     <div className="flex-grow">
-                       <div className="text-white font-mono text-sm">Target_File.bin</div>
-                       <div className="text-xs text-slate-500">Binary Execution Required</div>
+                       <div className="text-white font-mono text-sm">mission_asset_{challenge.id}.dat</div>
+                       <div className="text-xs text-slate-500">Binary Execution / Analysis Required</div>
                     </div>
-                    <a 
-                      href={challenge.fileUrl} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-cyan-900/20 text-cyan-400 border border-cyan-500/30 rounded flex items-center hover:bg-cyan-500 hover:text-black transition-all text-sm font-bold"
-                      onClick={playClickSound}
+                    <button 
+                      onClick={handleDownload}
+                      className="px-4 py-2 bg-cyan-900/20 text-cyan-400 border border-cyan-500/30 rounded flex items-center hover:bg-cyan-500 hover:text-black transition-all text-sm font-bold cursor-pointer"
                     >
                        <Download className="w-4 h-4 mr-2" />
                        DOWNLOAD
-                    </a>
+                    </button>
                  </div>
               </div>
             )}
 
-            <div className={`bg-black/40 rounded-lg p-6 border-l-4 ${isHintUnlocked ? 'border-yellow-500' : 'border-slate-700'}`}>
-              <h3 className={`${isHintUnlocked ? 'text-yellow-500' : 'text-slate-400'} font-bold mb-2 flex items-center`}>
+            <div className={`bg-black/40 rounded-lg p-6 border-l-4 ${isHintUnlocked ? 'border-yellow-500' : 'border-slate-700'} transition-all duration-300`}>
+              <h3 className={`${isHintUnlocked ? 'text-yellow-500' : 'text-slate-400'} font-bold mb-2 flex items-center transition-colors`}>
                 <AlertTriangle className="w-5 h-5 mr-2" /> INTELLIGENCE HINT
               </h3>
               
-              {isHintUnlocked ? (
-                <p className="text-slate-400 font-mono text-sm">{challenge.hint}</p>
-              ) : (
-                <div className="flex flex-col items-start gap-3">
+              <AnimatePresence mode="wait">
+                {isHintUnlocked ? (
+                  <motion.div
+                    key="unlocked"
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <p className="text-slate-400 font-mono text-sm mt-2 pt-2 border-t border-slate-700/50">
+                        <span className="text-yellow-500 mr-2">::</span>{challenge.hint}
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="locked"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex flex-col items-start gap-3"
+                  >
                     <p className="text-slate-500 font-mono text-sm italic">
                         [ENCRYPTED CONTENT] Purchase decryption key to view intelligence.
                     </p>
                     <Button 
                         onClick={purchaseHint}
                         variant="ghost"
-                        className="bg-yellow-900/20 text-yellow-500 border border-yellow-500/30 hover:bg-yellow-900/40 hover:text-yellow-400 text-xs py-2 px-4"
+                        className="bg-yellow-900/10 text-yellow-500 border border-yellow-500/30 hover:bg-yellow-500 hover:text-black transition-all text-xs py-2 px-4 shadow-[0_0_10px_rgba(234,179,8,0.1)] hover:shadow-[0_0_15px_rgba(234,179,8,0.4)]"
                     >
                         <Coins className="w-4 h-4 mr-2" />
-                        PURCHASE KEY (-{HINT_COST} PTS)
+                        DECRYPT HINT (-{HINT_COST} PTS)
                     </Button>
-                </div>
-              )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
 
@@ -311,10 +356,14 @@ const ChallengeDetailPage: React.FC<ChallengeDetailProps> = ({ challenge, curren
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className={`mt-6 p-4 rounded-lg flex items-center ${
-                  feedback.type === 'error' ? 'bg-red-900/20 text-red-300 border border-red-500/20' : 'bg-emerald-900/20 text-emerald-300 border border-emerald-500/20'
+                  feedback.type === 'error' ? 'bg-red-900/20 text-red-300 border border-red-500/20' : 
+                  feedback.type === 'success' ? 'bg-emerald-900/20 text-emerald-300 border border-emerald-500/20' : 
+                  'bg-cyan-900/20 text-cyan-300 border border-cyan-500/20'
                 }`}
               >
-                {feedback.type === 'error' ? <XCircle className="w-5 h-5 mr-3 flex-shrink-0" /> : <CheckCircle2 className="w-5 h-5 mr-3 flex-shrink-0" />}
+                {feedback.type === 'error' ? <XCircle className="w-5 h-5 mr-3 flex-shrink-0" /> : 
+                 feedback.type === 'success' ? <CheckCircle2 className="w-5 h-5 mr-3 flex-shrink-0" /> : 
+                 <FileCode className="w-5 h-5 mr-3 flex-shrink-0" />}
                 {feedback.message}
               </MotionDiv>
             )}

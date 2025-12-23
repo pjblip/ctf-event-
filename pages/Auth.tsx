@@ -22,6 +22,39 @@ const AuthPage: React.FC<AuthPageProps> = ({ mode, onLogin, onNavigate }) => {
   const [isLoading, setIsLoading] = useState(false);
   const MotionDiv = motion.div as any;
 
+  // Password Strength Logic
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return 0;
+    // Base requirement: 8 chars. If less, it's always weak (1).
+    if (pass.length < 8) return 1;
+    
+    let score = 1;
+    if (pass.length >= 12) score++; // Length bonus
+    if (/[A-Z]/.test(pass)) score++; // Uppercase bonus
+    if (/[0-9]/.test(pass)) score++; // Number bonus
+    if (/[^A-Za-z0-9]/.test(pass)) score++; // Special char bonus
+    
+    return Math.min(score, 5); // Max score 5
+  };
+
+  const strength = getPasswordStrength(password);
+  
+  const getStrengthColor = (s: number) => {
+    if (s <= 1) return 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]';
+    if (s === 2) return 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.6)]';
+    if (s === 3) return 'bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.6)]';
+    if (s === 4) return 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]';
+    return 'bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]'; // Max strength
+  };
+
+  const getStrengthLabel = (s: number) => {
+     if (s <= 1) return 'WEAK';
+     if (s === 2) return 'FAIR';
+     if (s === 3) return 'GOOD';
+     if (s === 4) return 'STRONG';
+     return 'SECURE';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -40,7 +73,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ mode, onLogin, onNavigate }) => {
           email,
           password,
           options: {
-            data: { username: username || email.split('@')[0], points: 0 }
+            data: { username: username || email.split('@')[0], points: 250 }
           }
         });
 
@@ -121,15 +154,45 @@ const AuthPage: React.FC<AuthPageProps> = ({ mode, onLogin, onNavigate }) => {
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-            <Input 
-              label="Password" 
-              type="password" 
-              placeholder="••••••••••••" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-            />
+            
+            <div className="space-y-2">
+              <Input 
+                label="Password" 
+                type="password" 
+                placeholder="••••••••••••" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+              
+              {/* PASSWORD STRENGTH INDICATOR */}
+              {mode === 'signup' && password.length > 0 && (
+                <div className="mt-2 animate-in fade-in slide-in-from-top-1 duration-300">
+                   <div className="flex justify-between items-end mb-1.5">
+                      <span className="text-[10px] text-slate-500 font-mono uppercase tracking-wider">Security Level</span>
+                      <span className={`text-[10px] font-bold font-mono tracking-wider transition-colors duration-300 ${
+                          strength <= 1 ? 'text-red-400' :
+                          strength === 2 ? 'text-orange-400' :
+                          strength === 3 ? 'text-yellow-400' :
+                          strength === 4 ? 'text-emerald-400' : 'text-cyan-400'
+                      }`}>
+                          [{getStrengthLabel(strength)}]
+                      </span>
+                   </div>
+                   <div className="flex gap-1 h-1.5 w-full bg-slate-900 rounded-full overflow-hidden">
+                      {[1, 2, 3, 4, 5].map((level) => (
+                         <div 
+                           key={level}
+                           className={`h-full rounded-full flex-1 transition-all duration-500 ${
+                              strength >= level ? getStrengthColor(strength) : 'bg-slate-800 opacity-20'
+                           }`}
+                         />
+                      ))}
+                   </div>
+                </div>
+              )}
+            </div>
 
             {error && (
               <div className="bg-red-900/30 border border-red-500/30 text-red-300 p-3 rounded flex items-center text-sm">
